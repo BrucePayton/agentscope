@@ -66,6 +66,44 @@ After that, you can set the API endpoint `http://localhost:8000` in the Web UI a
 
 ## What Next
 
+### Ordered model failover
+
+In the Web UI, open the primary model selector and choose **Model failover**
+(**模型故障切换**). Enable the provider model catalogue to automatically use
+the same candidate list exposed by `GET /model?provider=...`, or enter
+alternative names in order. Set the response timeout, for example 60 seconds.
+Catalogue entries are candidates, not proof that the credential can access
+every model. All names use the primary credential and model parameters.
+
+The session's `chat_model_config` accepts these additional fields:
+
+```json
+{
+  "fallback_from_catalog": true,
+  "fallback_models": [],
+  "request_timeout": 60
+}
+```
+
+Include the existing `type`, `credential_id`, `model` and `parameters` when
+patching this nested configuration. The attempt order is primary model,
+explicit alternative names, catalogue names in API order, then the existing
+`fallback_chat_model_config` if configured. Duplicate names in the primary
+credential's list are removed. Each new model call starts at the primary;
+this is failover, not load balancing or a persistent round-robin cursor.
+
+With alternatives configured, AgentScope's model retries are disabled.
+The underlying provider SDK may still retry before surfacing an error;
+the configured timeout also bounds that wait. All candidates failing raises
+the last error; the list is never cycled indefinitely. Timeout covers response
+creation plus the first stream chunk, then each subsequent stream wait.
+Errors before output can trigger failover. Once a stream has yielded output,
+errors stop that response rather than mixing or replaying partial text/tool
+calls from another model. User cancellation never starts another candidate.
+Without these fields, existing configurations remain valid and provider
+timeouts still apply. Restart a backend running without hot reload after
+updating the code.
+
 - You can customize the service in `main.py` by adding your own MCPs, middlewares, or workspace manager implementations.
 
 - Experience the agent service, including

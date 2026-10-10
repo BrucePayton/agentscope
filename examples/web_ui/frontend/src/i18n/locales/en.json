@@ -434,6 +434,12 @@
 		}
 	},
 	"llm-select": {
+		"fromCatalog": "Automatically append the current provider's model catalogue",
+		"failover": "Model failover",
+		"failoverDescription": "Try these names in order after the primary fails, using the same credential and parameters. An existing fallback runs last. No switching after output starts. Each new call starts with the primary.",
+		"fallbackNames": "Alternative model names (one per line; empty disables the list)",
+		"timeout": "Response / stream idle timeout (seconds)",
+		"saveFailover": "Save",
 		"placeholder": "Select a model",
 		"loading": "Loading…",
 		"empty": {

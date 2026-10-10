@@ -24,6 +24,7 @@ import jsonschema
 from pydantic import BaseModel
 
 from ._config import ContextConfig, ReActConfig, ModelConfig, InjectionConfig
+from ._model_timeout import wait_model_result, prime_model_stream
 from ..state import AgentState
 from ..state._state import ReplyContext
 from ._utils import _ToolCallBatch, Acting, Exit, Reasoning, _resolve_timezone
@@ -3298,7 +3299,7 @@ class Agent:
                 non-streaming models, or an async generator yielding
                 `ChatResponse` chunks for streaming models.
         """
-        models = [self.model]
+        models = [self.model, *self.model_config.fallback_models]
 
         # Fallback to the secondary model if the primary model fails after
         # retries
@@ -3318,12 +3319,16 @@ class Agent:
 
             for attempt in range(self.model_config.max_retries + 1):
                 try:
+                    started = asyncio.get_running_loop().time()
                     # Apply middleware to wrap the actual model() call
                     if not self._model_call_middlewares:
-                        return await model(
-                            messages=messages,
-                            tools=tools,
-                            tool_choice=tool_choice,
+                        res = await wait_model_result(
+                            model(
+                                messages=messages,
+                                tools=tools,
+                                tool_choice=tool_choice,
+                            ),
+                            self.model_config.request_timeout,
                         )
                     else:
                         # pylint: disable=cell-var-from-loop
@@ -3368,7 +3373,29 @@ class Agent:
                                     next_handler=next_handler,
                                 )
 
-                        return await execute_chain()
+                        res = await wait_model_result(
+                            execute_chain(),
+                            self.model_config.request_timeout,
+                        )
+                    if inspect.isasyncgen(res):
+                        timeout = self.model_config.request_timeout
+                        remaining = (
+                            max(
+                                0,
+                                timeout
+                                - (
+                                    asyncio.get_running_loop().time() - started
+                                ),
+                            )
+                            if timeout is not None
+                            else None
+                        )
+                        res = await prime_model_stream(
+                            res,
+                            timeout,
+                            remaining,
+                        )
+                    return res
                 except Exception as e:
                     last_exception = e
                     # Only log a "Retrying" message when there's actually a

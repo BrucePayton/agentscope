@@ -440,3 +440,13 @@ class ModelConfig(BaseModel):
     )
     """The fallback model used when the main model fails. Also supports the
     max_retries logic."""
+
+    fallback_models: list[ChatModelBase] = Field(default_factory=list)
+    """Ordered alternatives, tried before the legacy fallback_model."""
+
+    request_timeout: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False
+    )
+    """Seconds to obtain a response/first chunk, and maximum stream idle time.
+    None preserves the provider's timeout. Partial output is never replayed.
+    """

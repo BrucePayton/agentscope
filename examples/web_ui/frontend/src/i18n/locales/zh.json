@@ -434,6 +434,12 @@
 		}
 	},
 	"llm-select": {
+		"fromCatalog": "自动使用当前服务商的模型列表（追加到下列名称后）",
+		"failover": "模型故障切换",
+		"failoverDescription": "主模型失败后，按顺序尝试以下名称，共用当前凭证和参数。已有兜底模型最后尝试。开始输出后不再切换；每次新调用从主模型开始。",
+		"fallbackNames": "备用模型名称（每行一个，留空关闭列表）",
+		"timeout": "响应 / 流式停顿超时（秒）",
+		"saveFailover": "保存",
 		"placeholder": "选择模型",
 		"loading": "加载中…",
 		"empty": {

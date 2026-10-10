@@ -1,7 +1,9 @@
 import { ChevronDown, PlusCircle, Ban } from 'lucide-react';
+import { useState } from 'react';
 
 import type { ChatModelConfig } from '@/api';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -15,6 +17,8 @@ import {
 	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { useAvailableModels } from '@/hooks/useAvailableModels';
 import { useTranslation } from '@/i18n/useI18n.ts';
 import { cn } from '@/lib/utils';
@@ -51,6 +55,10 @@ export function LlmSelect({
 }: Props) {
 	const { groups, loading } = useAvailableModels();
 	const { t } = useTranslation();
+	const [failoverOpen, setFailoverOpen] = useState(false);
+	const [fallbackNames, setFallbackNames] = useState('');
+	const [fromCatalog, setFromCatalog] = useState(false);
+	const [timeout, setTimeoutSeconds] = useState('60');
 	// Credentials whose model list failed to load come back with an empty
 	// `models` array; drop them so they don't render empty submenus
 	const groupEntries = Object.entries(groups)
@@ -59,7 +67,10 @@ export function LlmSelect({
 	const hasOptions = groupEntries.length > 0;
 
 	const handleSelect = (type: string, credentialId: string, model: string) => {
-		onChange?.({ type, credential_id: credentialId, model, parameters: {} });
+		onChange?.({
+			...(value?.credential_id === credentialId ? value : {}),
+			type, credential_id: credentialId, model, parameters: {},
+		});
 	};
 
 	const displayLabel = value?.model
@@ -69,6 +80,7 @@ export function LlmSelect({
 			: (placeholder ?? t('llm-select.placeholder'));
 
 	return (
+		<>
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<Button
@@ -141,6 +153,16 @@ export function LlmSelect({
 					})
 				)}
 				<DropdownMenuSeparator />
+				{!allowClear && value && (
+					<DropdownMenuItem onSelect={() => {
+						setFallbackNames((value.fallback_models ?? []).join('\n'));
+						setFromCatalog(value.fallback_from_catalog ?? false);
+						setTimeoutSeconds(String(value.request_timeout ?? 60));
+						setFailoverOpen(true);
+					}}>
+						{t('llm-select.failover')}
+					</DropdownMenuItem>
+				)}
 				{allowClear && (
 					<DropdownMenuItem onSelect={() => onChange?.(null)} disabled={!value}>
 						<Ban className="size-4" />
@@ -153,5 +175,35 @@ export function LlmSelect({
 				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
+		<Dialog open={failoverOpen} onOpenChange={setFailoverOpen}>
+			<DialogContent>
+				<DialogTitle>{t('llm-select.failover')}</DialogTitle>
+				<DialogDescription>{t('llm-select.failoverDescription')}</DialogDescription>
+				<label className="flex items-center gap-2">
+					<input type="checkbox" checked={fromCatalog} onChange={(e) => setFromCatalog(e.target.checked)} />
+					{t('llm-select.fromCatalog')}
+				</label>
+				<label className="grid gap-2">
+					{t('llm-select.fallbackNames')}
+					<Textarea value={fallbackNames} onChange={(e) => setFallbackNames(e.target.value)} />
+				</label>
+				<label className="grid gap-2">
+					{t('llm-select.timeout')}
+					<Input type="number" min="1" step="1" value={timeout}
+						onChange={(e) => setTimeoutSeconds(e.target.value)} />
+				</label>
+				<Button disabled={!Number.isFinite(Number(timeout)) || Number(timeout) < 1} onClick={() => {
+					if (!value) return;
+					onChange?.({
+						...value,
+						fallback_from_catalog: fromCatalog,
+						fallback_models: [...new Set(fallbackNames.split(/[\n,，]/).map((name) => name.trim()).filter((name) => name && name !== value.model))],
+						request_timeout: Number(timeout),
+					});
+					setFailoverOpen(false);
+				}}>{t('llm-select.saveFailover')}</Button>
+			</DialogContent>
+		</Dialog>
+		</>
 	);
 }

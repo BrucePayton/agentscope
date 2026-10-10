@@ -8,6 +8,17 @@ from ...realtime import RealtimeModelBase
 from ..._logging import logger
 
 
+def get_fallback_names(
+    config: ChatModelConfig, model: ChatModelBase
+) -> list[str]:
+    """Resolve ordered unique candidates from explicit names and the catalogue."""
+    names = list(config.fallback_models)
+    if config.fallback_from_catalog:
+        # Same catalogue used by GET /model?provider=... .
+        names.extend(card.name for card in model.list_models())
+    return list(dict.fromkeys(name for name in names if name != config.model))
+
+
 async def get_model(
     user_id: str,
     config: ChatModelConfig,
