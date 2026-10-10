@@ -59,7 +59,7 @@ from .._types import (
     SubAgentTemplate,
 )
 from ._access import ResourceAccessService
-from ._model import get_model
+from ._model import get_model, get_fallback_names
 from ._tts_model import get_tts_model
 from ._toolkit import get_toolkit
 from ._session_projection import SessionProjection
@@ -1120,6 +1120,15 @@ class ChatService:
                         ),
                     )
                 model = await get_model(user_id, model_cfg, self._access)
+                alternatives = []
+                for name in get_fallback_names(model_cfg, model):
+                    alternatives.append(
+                        await get_model(
+                            user_id,
+                            model_cfg.model_copy(update={"model": name}),
+                            self._access,
+                        ),
+                    )
 
                 fallback_cfg = session_record.config.fallback_chat_model_config
                 fallback_model = (
@@ -1127,6 +1136,11 @@ class ChatService:
                     if fallback_cfg is not None
                     else None
                 )
+                if alternatives or fallback_model is not None:
+                    # Disable AgentScope retries; SDK retries may still apply.
+                    for candidate in [model, *alternatives, fallback_model]:
+                        if candidate is not None:
+                            candidate.max_retries = 0
 
                 # -------------------------------------------------------------
                 # 5. Assemble the Agent.
@@ -1181,7 +1195,11 @@ class ChatService:
                     system_prompt=system_prompt,
                     model=model,
                     toolkit=toolkit,
-                    model_config=ModelConfig(fallback_model=fallback_model),
+                    model_config=ModelConfig(
+                        fallback_model=fallback_model,
+                        fallback_models=alternatives,
+                        request_timeout=model_cfg.request_timeout,
+                    ),
                     context_config=chat_config.context_config,
                     react_config=chat_config.react_config,
                     state=agent_state,

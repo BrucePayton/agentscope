@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, field_validator
 from typing_extensions import deprecated
 
 from ._base import _RecordBase
@@ -122,6 +122,26 @@ class ChatModelConfig(BaseModel):
 
     parameters: dict
     """The model parameters."""
+
+    fallback_models: list[str] = Field(default_factory=list)
+    """Ordered alternative names using the same credential and parameters."""
+
+    fallback_from_catalog: bool = False
+    """Append the current provider's model catalogue after explicit names."""
+
+    request_timeout: float | None = Field(
+        default=None, gt=0, allow_inf_nan=False
+    )
+    """Response/first-chunk and stream idle timeout in seconds."""
+
+    @field_validator("fallback_models")
+    @classmethod
+    def validate_fallback_names(cls, names: list[str]) -> list[str]:
+        """Reject blank names and preserve the order of unique names."""
+        names = [name.strip() for name in names]
+        if any(not name for name in names):
+            raise ValueError("Fallback model names must not be empty")
+        return list(dict.fromkeys(names))
 
 
 class TTSModelConfig(BaseModel):

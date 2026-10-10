@@ -11,6 +11,9 @@ export interface ChatModelConfig {
 	credential_id: string;
 	model: string;
 	parameters: Record<string, unknown>;
+	fallback_models?: string[];
+	fallback_from_catalog?: boolean;
+	request_timeout?: number | null;
 }
 
 export interface TTSModelConfig {
